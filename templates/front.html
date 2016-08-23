@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+	{% if error_message %}
+	<div class="alert alert-info">
+		{{ error_message }}
+		<a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+	</div>
+	{% endif %}
+
+	<h1>Felipe's Blog</h1>
+
+	<hr>
+
+	<h3>
+		{% if logged_user_id and posts.count() > 0 %}
+			Hello, {{ logged_user.username }}, below is our list of posts:
+		{% elif logged_user_id and posts.count() == 0 %}
+			Hello, {{ logged_user.username }}. There aren't any posts yet. Create the first one.
+		{% elif not logged_user_id and posts.count() > 0 %}
+			Hello, visitor, below is our list of posts:
+		{% elif not logged_user_id and posts.count() == 0 %}
+			Hello, visitor. There aren't any posts yet. Register and create the first one.
+		{% endif %}
+	</h3>
+
+	{% for post in posts %}
+		<div class="div-post">
+			<div class="post-subject"><h2><a href="/posts/{{ post.key().id() }}">{{ post.subject }}</a></h2></div>
+			<pre class="post-content">{{ post.content }}</pre>
+			<br>
+		</div>
+		<br>
+	{% endfor %}
+{% endblock %}

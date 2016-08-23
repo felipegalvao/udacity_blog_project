@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+	<h1>Edit Comment</h1>
+
+	<form method="post">
+    <div class="form-group">
+		<label for="content">Content of the comment</label>
+	  <textarea name="content" class="form-control">{{ current_comment.content }}</textarea>
+
+		<div class="error">
+			<p><span class="span-error-form">{{ error }}</span></p>
+		</div>
+
+		<button type="submit" class="btn btn-default">Edit comment</button>
+	</form>
+
+  <p><span class="span-error-form">{{ comment_error }}</span></p>
+
+	<p><a href="/posts/{{ current_post.key().id() }}">Go back to post</a></p>
+{% endblock %}

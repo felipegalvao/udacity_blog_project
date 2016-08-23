@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+	<h1>Edit Post</h1>
+
+	<form method="post">
+		<div class="form-group">
+			<label for"subject">Subject</label>
+      {% if subject %}
+			  <input type="text" name="subject" value="{{ subject }}" class="form-control">
+      {% else %}
+        <input type="text" name="subject" value="{{ current_post.subject }}" class="form-control">
+      {% endif %}
+		</div>
+
+		<div class="form-group">
+			<label for"content">Post's Content</label>
+      {% if content %}
+        <textarea name="content" class="form-control">{{ content }}</textarea>
+      {% else %}
+			  <textarea name="content" class="form-control">{{ current_post.content }}</textarea>
+      {% endif %}
+		</div>
+
+    <input type="hidden" name="post_id" value="{{ current_post.key().id() }}">
+
+		<div class="error">
+			<p><span class="span-error-form">{{ error }}</span></p>
+		</div>
+
+		<button type="submit" class="btn btn-default">Edit post</button>
+	</form>
+
+	<p><a href="/posts/{{ current_post.key().id() }}">Go back to post</a></p>
+{% endblock %}
