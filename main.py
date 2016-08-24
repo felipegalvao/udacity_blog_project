@@ -396,7 +396,7 @@ class ShowPostHandler(Handler):
 			# If content is not present, set an error message and render the
 			# form again with it.
 			else:
-				comment_error = "You need to write some content for your comment."
+				comment_error = "You need to content for your comment."
 				self.render("show_post.html", current_post=current_post,
 							user_poster=user_poster, blogpost_id=blogpost_id,
 							number_of_likes=number_of_likes, liked=liked,
@@ -574,8 +574,10 @@ class EditCommentHandler(Handler):
 			# If not, render the edit comment again with error message
 			else:
 				comment_error = "Some content is required."
-				self.render("edit_comment.html", current_comment=current_comment,
-							comment_error=comment_error, current_post=current_post,
+				self.render("edit_comment.html",
+							current_comment=current_comment,
+							comment_error=comment_error,
+							current_post=current_post,
 							logged_user_id=logged_user_id)
 
 # Handler for deleting comments
