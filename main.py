@@ -9,6 +9,8 @@ import time
 import jinja2
 import webapp2
 
+from models import Post, Comment, User
+
 from google.appengine.ext import db
 
 SECRET = "sdac.rtyeysgfd8123ads.rqwefsfd*I&gfh%&!!"
@@ -36,41 +38,6 @@ def valid_pw(name, pw, h):
     if h == make_pw_hash(name, pw, salt):
         return(True)
 
-template_dir = os.path.join(os.path.dirname(__file__), 'templates')
-jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
-							   autoescape=True)
-
-class Handler(webapp2.RequestHandler):
-	def write(self, *a, **kw):
-		self.response.write(*a, **kw)
-
-	def render_str(self, template, **params):
-		t = jinja_env.get_template(template)
-		return t.render(params)
-
-	def render(self, template, **kw):
-		self.write(self.render_str(template, **kw))
-
-# Definitions for Post class
-class Post(db.Model):
-	subject = db.StringProperty(required = True)
-	content = db.TextProperty(required = True)
-	created_at = db.DateTimeProperty(auto_now_add = True)
-	posted_by_id = db.IntegerProperty(required = True)
-	likes = db.ListProperty(item_type=int)
-
-# Definitions for User class
-class User(db.Model):
-	username = db.StringProperty(required = True)
-	password_hash = db.StringProperty(required = True)
-	email = db.StringProperty
-
-# Definitions for Comment class
-class Comment(db.Model):
-	associated_post_id = db.IntegerProperty(required = True)
-	commenter = db.ReferenceProperty(User)
-	content = db.TextProperty(required = True)
-
 # Functions for validation of User information submitted on a form
 def username_is_valid(username):
 	USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
@@ -83,6 +50,23 @@ def password_is_valid(password):
 def email_is_valid(email):
 	EMAIL_RE = re.compile(r"^[\S]+@[\S]+.[\S]+$")
 	return EMAIL_RE.match(email)
+
+template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
+							   autoescape=True)
+
+
+class Handler(webapp2.RequestHandler):
+	def write(self, *a, **kw):
+		self.response.write(*a, **kw)
+
+	def render_str(self, template, **params):
+		t = jinja_env.get_template(template)
+		return t.render(params)
+
+	def render(self, template, **kw):
+		self.write(self.render_str(template, **kw))
+
 
 # Handler for User Signup
 class UserSignupHandler(Handler):
@@ -106,7 +90,7 @@ class UserSignupHandler(Handler):
 	def post(self):
 		# Get information from the submitted form
 		username = self.request.get("username")
-		password = self.request.get("username")
+		password = self.request.get("password")
 		verify = self.request.get("verify")
 		email = self.request.get("email")
 
@@ -278,29 +262,40 @@ class NewPostHandler(Handler):
 			self.redirect("/user_signup")
 
 	def post(self):
-		# Retrieve information submitted on the form
-		subject = self.request.get("subject")
-		content = self.request.get("content")
-
-		# If a subject and content are present
-		if subject and content:
-			# Create a new post with the submitted information and with the
-			# logged user information
-			user_id_cookie = self.request.cookies.get("user_id")
-			posted_by_id = int(user_id_cookie.split("|")[0])
-			p = Post(subject = subject, content = content,
-					 posted_by_id=posted_by_id)
-			p.put()
-			time.sleep(1)
-
-			# Redirect to the post page
-			self.redirect("/posts/"+str(p.key().id()))
-		# Render the form again with an error message if subject and / or
-		# content are not present
+		# Retrieve the user_id cookie and check if the user is logged in
+		user_id_cookie = self.request.cookies.get("user_id")
+		if user_id_cookie:
+			logged_user_id = int(user_id_cookie.split("|")[0])
+			logged_user = User.get_by_id(logged_user_id)
 		else:
-			error = "A subject and some content are required."
-			self.render("new_post.html", subject=subject, content=content,
-						error=error)
+			logged_user_id = None
+			logged_user = None
+
+		# If user is logged in
+		if logged_user_id:
+			# Retrieve information submitted on the form
+			subject = self.request.get("subject")
+			content = self.request.get("content")
+
+			# If a subject and content are present
+			if subject and content:
+				# Create a new post with the submitted information and with the
+				# logged user information
+				user_id_cookie = self.request.cookies.get("user_id")
+				posted_by_id = int(user_id_cookie.split("|")[0])
+				p = Post(subject = subject, content = content,
+						 posted_by_id=posted_by_id)
+				p.put()
+				time.sleep(1)
+
+				# Redirect to the post page
+				self.redirect("/posts/"+str(p.key().id()))
+			# Render the form again with an error message if subject and / or
+			# content are not present
+			else:
+				error = "A subject and some content are required."
+				self.render("new_post.html", subject=subject, content=content,
+							error=error, logged_user_id=logged_user_id)
 
 # Handler for showing posts
 class ShowPostHandler(Handler):
@@ -356,52 +351,57 @@ class ShowPostHandler(Handler):
 					logged_user_id=logged_user_id)
 
 	def post(self, blogpost_id):
-		# Get current post and id of the poster; then, retrieve the user/poster
-		current_post = Post.get_by_id(int(blogpost_id))
-		user_id = current_post.posted_by_id
-		user_poster = User.get_by_id(user_id)
-
-		# Retrieve the logged user cookie
+		# Retrieve the user_id cookie and check if the user is logged in
 		user_id_cookie = self.request.cookies.get("user_id")
 		if user_id_cookie:
 			logged_user_id = int(user_id_cookie.split("|")[0])
+			logged_user = User.get_by_id(logged_user_id)
 		else:
 			logged_user_id = None
+			logged_user = None
 
-		# Retrieve the content information
-		content = self.request.get("content")
+		# If user is logged in
+		if logged_user_id:
+			# Get current post and id of the poster; then, retrieve the
+			# user / poster
+			current_post = Post.get_by_id(int(blogpost_id))
+			user_id = current_post.posted_by_id
+			user_poster = User.get_by_id(user_id)
 
-		# Calculate number of likes
-		number_of_likes = str(len(current_post.likes))
+			# Retrieve the content information
+			content = self.request.get("content")
 
-		# Check if logged user already liked this post
-		if logged_user_id in current_post.likes:
-			liked = True
-		else:
-			liked = False
+			# Calculate number of likes
+			number_of_likes = str(len(current_post.likes))
 
-		# Retrieve comments for this post
-		comments = Comment.all().filter('associated_post_id =',
-										int(blogpost_id))
+			# Check if logged user already liked this post
+			if logged_user_id in current_post.likes:
+				liked = True
+			else:
+				liked = False
 
-		# If content is present, create the comment with the provided
-		# information and logged in user information
-		if content:
-			comment = Comment(associated_post_id = int(blogpost_id),
-							  commenter = User.get_by_id(logged_user_id),
-							  content = content)
-			comment.put()
-			time.sleep(1)
-			self.redirect("/posts/" + blogpost_id)
-		# If content is not present, set an error message and render the form
-		# again with it.
-		else:
-			comment_error = "You need to write some content for your comment."
-			self.render("show_post.html", current_post=current_post,
-						user_poster=user_poster, blogpost_id=blogpost_id,
-						number_of_likes=number_of_likes, liked=liked,
-						comments=comments, comment_error=comment_error,
-						logged_user_id=logged_user_id)
+			# Retrieve comments for this post
+			comments = Comment.all().filter('associated_post_id =',
+											int(blogpost_id))
+
+			# If content is present, create the comment with the provided
+			# information and logged in user information
+			if content:
+				comment = Comment(associated_post_id = int(blogpost_id),
+								  commenter = User.get_by_id(logged_user_id),
+								  content = content)
+				comment.put()
+				time.sleep(1)
+				self.redirect("/posts/" + blogpost_id)
+			# If content is not present, set an error message and render the
+			# form again with it.
+			else:
+				comment_error = "You need to write some content for your comment."
+				self.render("show_post.html", current_post=current_post,
+							user_poster=user_poster, blogpost_id=blogpost_id,
+							number_of_likes=number_of_likes, liked=liked,
+							comments=comments, comment_error=comment_error,
+							logged_user_id=logged_user_id)
 
 # Handler for editing posts
 class EditPostHandler(Handler):
@@ -428,26 +428,37 @@ class EditPostHandler(Handler):
 			self.redirect("/posts/" + blogpost_id + "?edit_permission=false")
 
 	def post(self, blogpost_id):
-		# Retrieve information submitted on the form
-		subject = self.request.get("subject")
-		content = self.request.get("content")
-		# Retrieve the post
-		current_post = Post.get_by_id(int(blogpost_id))
-		# If subject and content are present, edit the post and save it
-		if subject and content:
-			post_id = int(self.request.get("post_id"))
-			edited_post = Post.get_by_id(post_id)
-			edited_post.subject = subject
-			edited_post.content = content
-			edited_post.put()
-			time.sleep(1)
-			self.redirect("/posts/" + blogpost_id)
-		# If subject and / or content are not present, render the form again
-		# with error message
+		# Retrieve the user_id cookie and check if the user is logged in
+		user_id_cookie = self.request.cookies.get("user_id")
+		if user_id_cookie:
+			logged_user_id = int(user_id_cookie.split("|")[0])
+			logged_user = User.get_by_id(logged_user_id)
 		else:
-			error = "A subject and some content are required."
-			self.render("edit_post.html", current_post=current_post,
-						subject=subject, content=content, error=error)
+			logged_user_id = None
+			logged_user = None
+
+		# If user is logged in
+		if logged_user_id:
+			# Retrieve information submitted on the form
+			subject = self.request.get("subject")
+			content = self.request.get("content")
+			# Retrieve the post
+			current_post = Post.get_by_id(int(blogpost_id))
+			# If subject and content are present, edit the post and save it
+			if subject and content:
+				post_id = int(self.request.get("post_id"))
+				edited_post = Post.get_by_id(post_id)
+				edited_post.subject = subject
+				edited_post.content = content
+				edited_post.put()
+				time.sleep(1)
+				self.redirect("/posts/" + blogpost_id)
+			# If subject and / or content are not present, render the form again
+			# with error message
+			else:
+				error = "A subject and some content are required."
+				self.render("edit_post.html", current_post=current_post,
+							subject=subject, content=content, error=error)
 
 # Handler for deleting posts
 class DeletePostHandler(Handler):
@@ -539,27 +550,33 @@ class EditCommentHandler(Handler):
 						  "?comment_edit_permission=false")
 
 	def post(self, blogpost_id, comment_id):
-		# Check if user is logged in
+		# Retrieve the user_id cookie and check if the user is logged in
 		user_id_cookie = self.request.cookies.get("user_id")
 		if user_id_cookie:
 			logged_user_id = int(user_id_cookie.split("|")[0])
-
-		# Retrieve the information submitted in the form
-		content = self.request.get("content")
-		current_comment = Comment.get_by_id(int(comment_id))
-		current_post = Post.get_by_id(int(blogpost_id))
-		# If content is provided, edit the comment and save it
-		if content:
-			current_comment.content = content
-			current_comment.put()
-			time.sleep(1)
-			self.redirect("/posts/" + blogpost_id)
-		# If not, render the edit comment again with error message
+			logged_user = User.get_by_id(logged_user_id)
 		else:
-			comment_error = "Some content is required."
-			self.render("edit_comment.html", current_comment=current_comment,
-						comment_error=comment_error, current_post=current_post,
-						logged_user_id=logged_user_id)
+			logged_user_id = None
+			logged_user = None
+
+		# If user is logged in
+		if logged_user_id:
+			# Retrieve the information submitted in the form
+			content = self.request.get("content")
+			current_comment = Comment.get_by_id(int(comment_id))
+			current_post = Post.get_by_id(int(blogpost_id))
+			# If content is provided, edit the comment and save it
+			if content:
+				current_comment.content = content
+				current_comment.put()
+				time.sleep(1)
+				self.redirect("/posts/" + blogpost_id)
+			# If not, render the edit comment again with error message
+			else:
+				comment_error = "Some content is required."
+				self.render("edit_comment.html", current_comment=current_comment,
+							comment_error=comment_error, current_post=current_post,
+							logged_user_id=logged_user_id)
 
 # Handler for deleting comments
 class DeleteCommentHandler(Handler):
