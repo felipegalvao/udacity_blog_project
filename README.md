@@ -1,7 +1,7 @@
 To check the project, just head to:
 https://felipe-blog-udacity-project.appspot.com/
 
-For running if locally, you should have Google App Engine installed. On Linux,
+For running the project locally, you should have Google App Engine installed. On Linux,
 go to the folder where the project files are located and run:
 
 ```
